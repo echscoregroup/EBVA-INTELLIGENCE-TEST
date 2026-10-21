@@ -9,20 +9,16 @@ self.addEventListener('install', event => {
   );
 });
 
+// This test service worker must not delete other CacheStorage entries on the
+// shared github.io origin. Keep cache cleanup disabled for safe isolation.
 self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys()
-      .then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))))
-      .then(() => self.clients.claim())
-  );
+  event.waitUntil(self.clients.claim());
 });
 
 self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
 
-  // Always check the network first for page navigations so a new EBVA release
-  // is not hidden behind a previously cached index.html.
   if (request.mode === 'navigate' || new URL(request.url).pathname.endsWith('/index.html')) {
     event.respondWith(
       fetch(request)
@@ -38,7 +34,6 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Cache-first for stable assets, with network fallback and cache refresh.
   event.respondWith(
     caches.match(request).then(cached => {
       if (cached) return cached;
